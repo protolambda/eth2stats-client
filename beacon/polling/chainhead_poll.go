@@ -41,7 +41,7 @@ func (s *ChainHeadClientPoller) Start() {
 		default:
 			head, err := s.client.GetChainHead()
 			if err != nil {
-				log.Errorf("failed to poll for chain head")
+				log.Errorf("failed to poll for chain head: %v", err)
 				time.Sleep(PollingInterval)
 				continue
 			}
