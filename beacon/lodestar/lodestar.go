@@ -22,18 +22,22 @@ type LodestarHTTPClient struct {
 }
 
 func (s *LodestarHTTPClient) GetVersion() (string, error) {
-	path := "node/version"
-	version := new(string)
-	_, err := s.api.New().Get(path).ReceiveSuccess(version)
+	path := "v1/node/version"
+	type lodestarVersion struct {
+		Data struct {
+			Version string `json:"version,omitempty"`
+		} `json:"data"`
+	}
+	resp := new(lodestarVersion)
+	_, err := s.api.New().Get(path).ReceiveSuccess(resp)
 	if err != nil {
 		return "", err
 	}
-	return *version, nil
+	return resp.Data.Version, nil
 }
 
 func (s *LodestarHTTPClient) GetGenesisTime() (int64, error) {
-	// node/genesis_time instead of beacon/genesis_time like lighthouse.
-	path := "node/genesis_time"
+	path := "lodestar/genesis_time"
 	genesisTime := int64(0)
 	_, err := s.api.New().Get(path).ReceiveSuccess(&genesisTime)
 	if err != nil {
@@ -43,13 +47,18 @@ func (s *LodestarHTTPClient) GetGenesisTime() (int64, error) {
 }
 
 func (s *LodestarHTTPClient) GetPeerCount() (int64, error) {
-	path := "node/peers"
-	peers := new([]string)
-	_, err := s.api.New().Get(path).ReceiveSuccess(peers)
+	path := "v1/node/peers"
+	type lodestarPeers struct {
+		Data []struct{
+			// omit everything, we only care about the peer count.
+		} `json:"data"`
+	}
+	resp := new(lodestarPeers)
+	_, err := s.api.New().Get(path).ReceiveSuccess(resp)
 	if err != nil {
 		return 0, err
 	}
-	return int64(len(*peers)), nil
+	return int64(len(resp.Data)), nil
 }
 
 func (s *LodestarHTTPClient) GetAttestationsInPoolCount() (int64, error) {
@@ -57,27 +66,26 @@ func (s *LodestarHTTPClient) GetAttestationsInPoolCount() (int64, error) {
 }
 
 func (s *LodestarHTTPClient) GetSyncStatus() (bool, error) {
-	path := fmt.Sprintf("node/syncing")
+	path := fmt.Sprintf("v1/node/syncing")
 	type lodestarSyncing struct {
-		// Below 3 fields are present during sync only.
-		//StartingBlock string `json:"starting_block,omitempty"`
-		CurrentBlock string `json:"current_block,omitempty"`
-		HighestBlock string `json:"highest_block,omitempty"`
-		// may be the only field after sync completes.
-		Syncing bool `json:"syncing,omitempty"`
+		Data struct {
+			SyncDistance string `json:"sync_distance,omitempty"`
+		} `json:"data"`
 	}
-	status := new(lodestarSyncing)
-	_, err := s.api.New().Get(path).ReceiveSuccess(status)
+	resp := new(lodestarSyncing)
+	_, err := s.api.New().Get(path).ReceiveSuccess(resp)
 	if err != nil {
 		return false, err
 	}
-	currentBlock, _ := strconv.ParseUint(status.CurrentBlock, 0, 64)
-	highestBlock, _ := strconv.ParseUint(status.HighestBlock, 0, 64)
-	return status.Syncing || currentBlock < highestBlock, nil
+	distance, err := strconv.ParseUint(resp.Data.SyncDistance, 0, 64)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return distance > 0, nil
 }
 
 func (s *LodestarHTTPClient) GetChainHead() (*types.ChainHead, error) {
-	path := fmt.Sprintf("node/head")
+	path := fmt.Sprintf("lodestar/head")
 	type chainHead struct {
 		HeadSlot           string `json:"head_slot"`
 		HeadBlockRoot      string `json:"head_block_root"`
